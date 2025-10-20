@@ -1,0 +1,209 @@
+---
+title: "lab2-Deuterium Final report"
+author: "Ligong Zhang, Noshen Habib, Gavin Green, Ani Sreekumar"
+date: "2025-08-09"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction:
+
+Over the past two decades, global internet access has expanded at an unprecedented pace, fundamentally transforming how information is accessed, shared, and used for learning. Yet, while billions of people are now online, progress in core education metrics such as literacy rates and years of schooling has not kept the same pace. This raises an important question: $$\textit{“What is the relationship between internet usage and educational attainment across countries??”}$$ The question is especially relevant in the wake of the COVID-19 pandemic, which accelerated the shift to online learning and underscored the internet’s potential as an educational tool. While prior studies have examined this relationship in certain regions or with earlier datasets, no peer-reviewed research has explored it using the most recent global data from 2022. This study uses statistical models to assess whether higher internet penetration is associated with better literacy outcomes, even after accounting for GDP and urbanization. The results aim to contribute to global policy debates by clarifying whether investments in digital infrastructure can also advance equitable access to education worldwide.
+
+## Description of Data Source:
+
+The data comes from the World Development Indicators, an open database from the World Bank which is regarded as “the most current and accurate global development data available” (Ott). All of their data is verified under the IMF’s General Data Dissemination System and has been validated under the Data Quality Assessment Framework. We are interested in the Internet Use, Youth Literacy, Adult Literacy, and GDP Per Capita measures. More information can be found in the Expanded Description of Data Source Document.
+
+## Data Wrangling:
+
+In order to further investigate our research question, we used country-level, cross-sectional data for 2022 on three key indicators: internet usage (IT.NET.USER.ZS, percent of the population using the internet), adult literacy rate (SE.ADT.LITR.ZS, percent of people ages 15 and above who are literate), and youth literacy rate (SE.ADT.1524.LT.ZS, percent literacy among those ages 15–24). We included the extra = TRUE metadata to retain information such as income grouping and region for later exploration. We used 2022 since it's the most recent year that has good data coverage on our variables of interest.
+
+We filtered out any observations with missing values on the three primary variables and dropped aggregate rows (e.g., “World” or income-region summaries) so that each row represents an individual country. We then created a derived variable, Literary_Difference, defined as youth literacy minus adult literacy, capturing the generational gap in literacy within each country. This new variable serves as the outcome for the primary descriptive model, summarizing whether younger cohorts exhibit relatively higher literacy compared to older cohorts.
+
+Additionally, to better account for economic development across countries, we added GDP per capita (NY.GDP.PCAP.CD) as an additional variable. Taking the natural logarithm of GDP helped reduce the skew caused by very high-income countries and allowed for interpretation in terms of proportional increases in economic wealth.
+
+## Operationalization:
+
+To find the relationship between educational attainment and internet use, we will use the Internet Use indicator and Literacy Rate indicators. Interestingly, both of these are considered “floor” indicators in their respective mediums: an internet user, by definition, is anyone that has used the internet recently, and a literate person is someone that can read/write/exhibit numeracy. Correlations between these two floor setting indicators would not show anything about the quality of education, time spent online, or any higher educational attainment.
+
+Next, Youth and Adult Literacy Rate indicators should have interesting interactions between them. Higher youth than adult literacy rates would mean that education, in a country, has been setting a better baseline recently. Additionally, these regressions could aid in telling a story that basic literacy is a requirement to using much of the internet: searching, interacting, etc. Perhaps growing up with internet access could have some effects on literacy, or vice versa.
+
+To control for broader structural differences between countries, we incorporated log-transformed GDP per capita into our models. This allowed us to isolate the effect of internet usage from national wealth, and to explore whether economic development amplifies or masks the relationship between internet access and literacy outcomes. We first examined how including log(GDP) affected the statistical significance of each independent variable in the regression models, particularly whether either variable became more or less influential when controlling for the other. Next, we formally evaluated whether adding GDP improved overall model performance using an ANOVA nested model comparison. This sequential approach helped us understand both the individual and joint contributions of internet usage and national income to variations in literacy outcomes.
+
+## Data Visualization:
+
+```{r include=FALSE}
+# Install packages
+install.packages(c("WDI", "tidyverse"))
+
+# Load required libraries
+library(WDI)
+library(tidyverse)
+education_indicators <- WDIsearch("education")
+head(education_indicators, 100)
+internet_indicators <- WDIsearch("internet")
+head(internet_indicators, 100)
+internet_data <- WDI(
+  country = "all",                      
+  indicator = "IT.NET.USER.ZS",        
+  start = 2015,                        
+  end = 2019,                           
+  extra = TRUE                          
+)
+
+colnames(internet_data)
+
+internet_data[internet_data$country == "United States", ]
+library(dplyr)
+
+# 2022
+data <- WDI(
+  country = "all",
+  indicator = c("IT.NET.USER.ZS", "SE.ADT.LITR.ZS", "SE.ADT.1524.LT.ZS"),
+  start = 2022,
+  end = 2022,
+  extra = TRUE
+)
+
+# add calculated field
+data_clean <- data %>%
+  filter(!is.na(IT.NET.USER.ZS), !is.na(SE.ADT.LITR.ZS), !is.na(SE.ADT.1524.LT.ZS)) %>%
+  filter(region != "Aggregates")%>%
+  mutate(Literacy_Difference = SE.ADT.1524.LT.ZS - SE.ADT.LITR.ZS)
+  
+
+
+# Create long-format data for plotting
+plot_data <- data_clean %>%
+  select(country, IT.NET.USER.ZS, 
+         Youth = SE.ADT.1524.LT.ZS, 
+         Adult = SE.ADT.LITR.ZS) %>%
+  pivot_longer(cols = c(Youth, Adult), 
+               names_to = "Group", 
+               values_to = "LiteracyRate")
+
+# Create the scatterplot
+lit_gap_plot<- ggplot(plot_data, aes(x = IT.NET.USER.ZS, y = LiteracyRate, color = Group)) +
+  geom_point(size = 3, alpha = 0.7) +
+  geom_line(aes(group = country), alpha = 0.5)+
+  scale_color_manual(values = c("Youth" = "red", "Adult" = "green")) +
+  labs(
+    x = "Internet Usage (% of Population)",
+    y = "Literacy Rate (%)",
+    color = "Group",
+    title = "Internet Usage vs Literacy Rates by Age Group"
+  ) +
+  theme_minimal()
+```
+
+```{r fig.width=12, fig.height=5, echo=FALSE}
+lit_gap_plot
+```
+
+This visualization plots internet usage (x-axis) against literacy rates (y-axis) for countries, with red dots representing youth literacy and green dots representing adult literacy. Each country has a pair of dots connected by a vertical line, illustrating the generational literacy gap. The plot reveals that countries with lower internet usage tend to have lower literacy rates overall, especially among adults. Youth literacy is almost always higher than adult literacy, indicating generational progress, and as internet usage increases, both youth and adult literacy rates converge near 100%. This pattern suggests that countries with greater digital connectivity also tend to have broader access to education. Notably, only one country in the dataset shows a higher adult literacy rate than youth literacy.
+
+## Model Specification:
+
+We estimate six linear regression models to assess the relationship between internet usage, literacy outcomes, and national wealth. The first three models examine whether internet usage predicts (1) the youth–adult literacy gap, (2) adult literacy, and (3) youth literacy. The next three models replicate these analyses while adding log GDP per capita as a control, allowing us to isolate internet’s unique contribution from the effects of national wealth. Robust standard errors (HC1) are applied in all models to account for potential heteroskedasticity.
+
+```{r results='asis', echo=FALSE, message=FALSE, warning=FALSE}
+# Install and load packages
+install.packages("stargazer")
+install.packages("sandwich")
+
+
+library(stargazer)
+library(sandwich)
+
+data <- WDI(
+  country = "all",
+  indicator = c("IT.NET.USER.ZS",        # Internet usage
+                "SE.ADT.LITR.ZS",        # Adult literacy
+                "SE.ADT.1524.LT.ZS",     # Youth literacy
+                "NY.GDP.PCAP.CD"),       # GDP per capita (USD)
+  start = 2022,
+  end = 2022,
+  extra = TRUE
+)
+
+# Clean and add calculated field
+data_clean <- data %>%
+  filter(!is.na(IT.NET.USER.ZS), 
+         !is.na(SE.ADT.LITR.ZS), 
+         !is.na(SE.ADT.1524.LT.ZS),
+         !is.na(NY.GDP.PCAP.CD)) %>%
+  filter(region != "Aggregates") %>%
+  mutate(Literacy_Difference = SE.ADT.1524.LT.ZS - SE.ADT.LITR.ZS)
+
+# Refit all models
+m1 <- lm(Literacy_Difference ~ IT.NET.USER.ZS, data = data_clean)
+m2 <- lm(SE.ADT.LITR.ZS ~ IT.NET.USER.ZS, data = data_clean)
+m3 <- lm(SE.ADT.1524.LT.ZS ~ IT.NET.USER.ZS, data = data_clean)
+
+m4 <- lm(Literacy_Difference ~ IT.NET.USER.ZS + log(NY.GDP.PCAP.CD), data = data_clean)
+m5 <- lm(SE.ADT.LITR.ZS ~ IT.NET.USER.ZS + log(NY.GDP.PCAP.CD), data = data_clean)
+m6 <- lm(SE.ADT.1524.LT.ZS ~ IT.NET.USER.ZS + log(NY.GDP.PCAP.CD), data = data_clean)
+
+# Get robust standard errors
+robust_se <- list(
+  sqrt(diag(vcovHC(m1, type = "HC1"))),
+  sqrt(diag(vcovHC(m2, type = "HC1"))),
+  sqrt(diag(vcovHC(m3, type = "HC1"))),
+  sqrt(diag(vcovHC(m4, type = "HC1"))),
+  sqrt(diag(vcovHC(m5, type = "HC1"))),
+  sqrt(diag(vcovHC(m6, type = "HC1")))
+)
+
+# Generate the table
+stargazer(m1, m2, m3, m4, m5, m6,
+          se = robust_se,
+          type = "latex",  
+          title = "Regression Results with Robust Standard Errors",
+          column.labels = c("Model 1", "Model 2", "Model 3", 
+                            "Model 4", "Model 5", "Model 6"),
+          dep.var.labels = c("Lit Gap", "Adult Lit", "Youth Lit", 
+                             "Lit Gap", "Adult Lit", "Youth Lit"),
+          covariate.labels = c("Internet Usage", "log(GDP per Capita)"),
+          omit.stat = c("f", "ser"),
+          digits = 2,
+          no.space = TRUE)
+
+```
+
+## Model Assumptions:
+
+Since we are working with a large, cross-sectional dataset of countries, we adopt a large-sample linear modeling framework. This approach relies on two key assumptions: (1) that the data are independent and identically distributed (I.I.D.), and (2) that a unique Best Linear Predictor (BLP) exists. I.I.D. Assumption We assume that each observation — representing a different country in the year 2022 — is independently and identically drawn from the same data-generating process. While some geographic or regional dependencies may exist (e.g., cultural or economic similarities among neighboring countries), there is no clustering, panel structure, or time-series element in the data. All observations are cross-sectional and taken from a single time point, minimizing concerns about serial or nested dependencies. Therefore, the I.I.D. assumption is considered reasonable for this analysis. Existence of a Unique Best Linear Predictor (BLP) This assumption requires that the model's predictor variables are not perfectly collinear — formally known as no perfect multicollinearity. To evaluate this, we calculated both the Pearson correlation and the Variance Inflation Factor (VIF) between the two independent variables: internet usage and log-transformed GDP per capita. We found a strong correlation of 0.877, indicating a close linear relationship between the two predictors. However, the VIF for each variable was 4.32, which is below the commonly used threshold of 10. This suggests that although the variables are related, they do not share redundant information, and both contribute uniquely to the model. As a result, we conclude that the condition for a unique BLP is satisfied, and the regression solution is well-posed. Together, these assumptions ensure that the regression results can be interpreted as valid large-sample summaries of the relationships among internet access, national wealth, and literacy outcomes.
+
+## Results and interpretation:
+
+Table 1 summarizes the results from six linear regression models estimating literacy outcomes as a function of internet usage and, in later models, log-transformed GDP per capita. Each model includes robust standard errors to account for potential heteroskedasticity. Model 1–3 include only internet usage as the independent variable. Internet usage shows a statistically significant positive effect on both adult and youth literacy rates (Models 2 and 3), but a negative effect on the literacy gap (Model 1), suggesting that gains may be larger for older generations in some contexts.
+
+Model 4–6 introduce log(GDP per capita) to control for national wealth. After including GDP, the effect of internet usage on literacy outcomes remains significant and positive, though slightly attenuated. In Model 4, the coefficient on GDP is statistically significant and negative, suggesting that wealthier countries may have a smaller generational literacy gap, potentially due to earlier convergence in literacy rates.Adjusted R-squared values increase modestly in models including GDP, indicating some improvement in explanatory power.
+
+To formally test whether GDP per capita improves model fit, we used ANOVA comparisons between nested models with and without log(GDP). Only the model predicting the literacy gap (Model 1 vs 4) shows a statistically significant improvement when GDP is added (p = 0.016). This supports the idea that national wealth explains variation in literacy gaps — likely because richer countries had higher literacy rates in prior generations already. For adult and youth literacy rates (Model 2 vs 5, Model 3 vs 6), adding GDP does not significantly improve the model, based on F-tests (p = 0.33 and p = 0.78). This suggests internet usage alone captures much of the variation in literacy rates, and that GDP’s additional contribution is limited in this cross-sectional framework.
+
+## Overall Effect:
+
+This study demonstrates that internet usage is meaningfully associated with educational attainment, reinforcing the idea that digital access can play a valuable role in supporting learning and literacy on a global scale. While our findings suggest that internet access is linked to a smaller youth–adult literacy gap, this effect disappears once GDP is taken into account, highlighting how income levels shape both digital connectivity and educational outcomes. These results underscore the importance of viewing internet access not as a luxury, but as essential educational infrastructure, particularly in contexts where policymakers and development organizations are making resource allocation decisions. At the same time, we recognize that this study represents just one piece of the broader education puzzle. By focusing on literacy rates, we offer insight into foundational outcomes, but future research should examine how internet access influences more advanced metrics, such as secondary and tertiary enrollment, academic achievement, and research capacity. Expanding this line of inquiry will be crucial for understanding how digital infrastructure can equitably support educational progress across all levels.
+
+## Appendix
+
+1.  Link to Data Source World Bank – World Development Indicators (WDI), 2022 dataset. Accessed via the WDI R package: <https://databank.worldbank.org/source/world-development-indicators>
+
+2.  List of Model Specifications Tried
+
+Models 1–3: Regressed the literacy gap, adult literacy, and youth literacy separately on internet usage. Purpose was to assess the baseline relationship without controls. Found that internet usage is positively associated with adult and youth literacy, but negatively associated with the literacy gap — suggesting older generations may be catching up faster in some contexts.
+
+Models 4–6: Added log(GDP per capita) to each of the above models to control for national wealth. This adjustment reduced the size and significance of internet’s effect on the literacy gap, indicating that income mediates this relationship. For adult and youth literacy, internet usage remained a strong and significant predictor, while GDP’s contribution was minimal.
+
+3.  Residuals-vs-Fitted Values Plot (Final Model)
+
+```{r}
+
+plot(m1, which = 1)
+```
+
+Interpretation: The residuals are fairly evenly scattered around zero, with no strong curvature, suggesting the linear functional form is appropriate. A few outliers (e.g., observations 5, 26, 33) have larger residuals, but these do not indicate a systematic pattern. The red smoothing line remains close to zero across the fitted values, supporting the model’s adequacy for linear regression in this large-sample setting.

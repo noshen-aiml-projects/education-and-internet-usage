@@ -1,0 +1,210 @@
+---
+title: "WDI_EDA"
+output: pdf_document
+date: "2025-07-31"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+
+```{r}
+library(WDI)
+```
+
+```{r}
+education_indicators <- WDIsearch("education")
+head(education_indicators, 100)
+```
+```{r}
+internet_indicators <- WDIsearch("internet")
+head(internet_indicators, 100)
+```
+
+```{r}
+internet_data <- WDI(
+  country = "all",                      
+  indicator = "IT.NET.USER.ZS",        
+  start = 2015,                        
+  end = 2019,                           
+  extra = TRUE                          
+)
+
+head(internet_data)
+
+colnames(internet_data)
+
+internet_data[internet_data$country == "United States", ]
+```
+```{r}
+library(dplyr)
+
+# 2022
+data <- WDI(
+  country = "all",
+  indicator = c("IT.NET.USER.ZS", "SE.ADT.LITR.ZS", "SE.ADT.1524.LT.ZS"),
+  start = 2022,
+  end = 2022,
+  extra = TRUE
+)
+
+# add calculated field
+data_clean <- data %>%
+  filter(!is.na(IT.NET.USER.ZS), !is.na(SE.ADT.LITR.ZS), !is.na(SE.ADT.1524.LT.ZS)) %>%
+  filter(region != "Aggregates")%>%
+  mutate(Literacy_Difference = SE.ADT.1524.LT.ZS - SE.ADT.LITR.ZS)
+  
+
+data_clean
+```
+
+```{r}
+# Create long-format data for plotting
+plot_data <- data_clean %>%
+  select(country, IT.NET.USER.ZS, 
+         Youth = SE.ADT.1524.LT.ZS, 
+         Adult = SE.ADT.LITR.ZS) %>%
+  pivot_longer(cols = c(Youth, Adult), 
+               names_to = "Group", 
+               values_to = "LiteracyRate")
+
+# Create the scatterplot
+ggplot(plot_data, aes(x = IT.NET.USER.ZS, y = LiteracyRate, color = Group)) +
+  geom_point(size = 3, alpha = 0.7) +
+  geom_line(aes(group = country), alpha = 0.5)+
+  scale_color_manual(values = c("Youth" = "red", "Adult" = "green")) +
+  labs(
+    x = "Internet Usage (% of Population)",
+    y = "Literacy Rate (%)",
+    color = "Group",
+    title = "Internet Usage vs Literacy Rates by Age Group"
+  ) +
+  theme_minimal()r
+```
+
+###Plots
+
+```{r}
+library(ggplot2)
+
+ggplot(data_clean, aes(x = IT.NET.USER.ZS, y = Literacy_Difference)) +
+  geom_point(alpha = 0.7, size = 3) +
+  geom_smooth(method = "lm", se = TRUE, formula = y ~ x) +
+  labs(
+    x = "Internet Usage (% of Population)",
+    y = "Youth − Adult Literacy Rate (%)",
+    title = "Internet Access and Generational Literacy Gap (2022)",
+    subtitle = "Positive values mean youth literacy exceeds adult literacy"
+  ) +
+  theme_minimal()
+```
+```{r}
+plot(model, which = 1)
+```
+
+```{r}
+
+```
+
+```{r}
+# By region
+ggplot(data_clean, aes(x = IT.NET.USER.ZS, y = Literacy_Difference)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, color = "blue") +
+  facet_wrap(~ region) +
+  labs(
+    x = "Internet Usage (% of Population)",
+    y = "Youth − Adult Literacy Rate (%)",
+    title = "Literacy Gap vs Internet Usage by Region"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+# By income group
+ggplot(data_clean, aes(x = IT.NET.USER.ZS, y = Literacy_Difference)) +
+  geom_point(alpha = 0.7) +
+  geom_smooth(method = "lm", se = FALSE, color = "darkgreen") +
+  facet_wrap(~ income) +
+  labs(
+    x = "Internet Usage (% of Population)",
+    y = "Youth − Adult Literacy Rate (%)",
+    title = "Literacy Gap vs Internet Usage by Income Group"
+  ) +
+  theme_minimal()
+```
+```{r}
+library(dplyr)
+library(ggplot2)
+
+binned <- data_clean %>%
+  mutate(bin = ntile(IT.NET.USER.ZS, 5)) %>%
+  group_by(income, bin) %>%
+  summarize(
+    avg_gap = mean(Literacy_Difference, na.rm = TRUE),
+    avg_internet = mean(IT.NET.USER.ZS, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(data_clean, aes(x = IT.NET.USER.ZS, y = Literacy_Difference)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", formula = y ~ x, se = TRUE, color = "blue") +
+  geom_line(data = binned, aes(x = avg_internet, y = avg_gap), color = "darkred", size = 1) +
+  geom_point(data = binned, aes(x = avg_internet, y = avg_gap), color = "darkred", size = 2) +
+  facet_wrap(~ income) +
+  labs(
+    x = "Internet Usage (% of Population)",
+    y = "Youth − Adult Literacy Rate (%)",
+    title = "Generational Literacy Gap vs Internet Access, by Income Group",
+    subtitle = "Blue line: linear fit; red points/line: binned average gap"
+  ) +
+  theme_minimal()
+
+```
+
+
+```{r}
+library(ggplot2)
+
+
+```
+
+###Models
+
+
+```{r}
+nrow(data_clean)  
+
+model <- lm(Literacy_Difference ~ IT.NET.USER.ZS, data = data_clean)
+summary(model)
+```
+```{r}
+model1 <- lm(SE.ADT.LITR.ZS ~ IT.NET.USER.ZS, data = data_clean)
+summary(model1)
+```
+```{r}
+model2 <- lm(SE.ADT.1524.LT.ZS ~ IT.NET.USER.ZS, data = data_clean)
+summary(model2)
+```
+
